@@ -49,8 +49,8 @@ jobs:
       run: |
         echo "Current directory contents:"
         ls -la
-        echo "Publish directory contents:"
-        ls -la ./publish/
+        echo "Checking for app files:"
+        ls -la TodoApp.dll || echo "TodoApp.dll not found"
 
     - name: Stop the application service
       run: |
@@ -60,7 +60,7 @@ jobs:
       run: |
         sudo rm -rf /opt/todoapp
         sudo mkdir -p /opt/todoapp
-        sudo cp -r ./publish/* /opt/todoapp/
+        sudo cp -r ./* /opt/todoapp/ 2>/dev/null || sudo cp -r * /opt/todoapp/
         sudo chown -R azureuser:azureuser /opt/todoapp
 
     - name: Start the application service
