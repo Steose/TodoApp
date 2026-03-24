@@ -1,14 +1,18 @@
 using TodoApp.Models;
 using TodoApp.Services;
+using TodoApp.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
-// Configure MongoDB settings
+// Configure CosmosDB settings
 builder.Services.Configure<TodoDatabaseSettings>(
     builder.Configuration.GetSection("TodoDatabase"));
+
+// Register Repository as singleton
+builder.Services.AddSingleton<ITodoRepository, TodoRepository>();
 
 // Register TodoService
 builder.Services.AddSingleton<ITodoService, TodoService>();

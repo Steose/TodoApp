@@ -1,14 +1,11 @@
 
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 using System.ComponentModel.DataAnnotations;
 
 namespace TodoApp.Models
 {
     public class TodoItem
     {
-        [BsonId]
-        [BsonRepresentation(BsonType.ObjectId)]
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
         public string? Id { get; set; }
 
         [Required]
@@ -24,5 +21,8 @@ namespace TodoApp.Models
 
         [Display(Name = "Created At")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [System.Text.Json.Serialization.JsonPropertyName("partitionKey")]
+        public string PartitionKey { get; set; } = "TodoItem";
     }
 }
