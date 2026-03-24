@@ -1,0 +1,22 @@
+@{
+    ViewData["Title"] = "Todo Item";
+}
+
+<h2>Add a new todo item</h2>
+
+<form action="/Todo/Item" method="post">
+
+    <label for="id">ID:</label>
+    <input type="text" id="id" name="id">
+
+    <label for="title">Title:</label>
+    <input type="text" id="title" name="title">
+
+    <label for="description">Description:</label>
+    <input type="text" id="description" name="description">
+
+    <label for="isCompleted">Is Completed:</label>
+    <input type="checkbox" id="isCompleted" name="isCompleted">
+
+    <button type="submit">Add Todo</button>
+</form>
