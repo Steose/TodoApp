@@ -1,7 +1,17 @@
+using TodoApp.Models;
+using TodoApp.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+// Configure MongoDB settings
+builder.Services.Configure<TodoDatabaseSettings>(
+    builder.Configuration.GetSection("TodoDatabase"));
+
+// Register TodoService
+builder.Services.AddSingleton<ITodoService, TodoService>();
 
 var app = builder.Build();
 

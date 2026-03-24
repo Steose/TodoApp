@@ -1,14 +1,14 @@
-/* using Microsoft.AspNetCore.Mvc;
-using TodoAppMvcMongo.Models;
-using TodoAppMvcMongo.Services;
+using Microsoft.AspNetCore.Mvc;
+using TodoApp.Models;
+using TodoApp.Services;
 
-namespace TodoAppMvcMongo.Controllers
+namespace TodoApp.Controllers
 {
     public class TodoController : Controller
     {
-        private readonly TodoService _todoService;
+        private readonly ITodoService _todoService;
 
-        public TodoController(TodoService todoService)
+        public TodoController(ITodoService todoService)
         {
             _todoService = todoService;
         }
@@ -93,29 +93,24 @@ namespace TodoAppMvcMongo.Controllers
             await _todoService.ToggleCompleteAsync(id);
             return RedirectToAction(nameof(Index));
         }
-    }
-} */
 
-using Microsoft.AspNetCore.Mvc;
-namespace TodoApp.Controllers
-{
-    public class TodoController : Controller
-    {
         public IActionResult Item()
         {
             return View();
         }
+
         [HttpPost]
-    public IActionResult Item(string id, string title, string description,bool isCompleted)
-    {
-        // Add todo logic here
-        // ...
+        public async Task<IActionResult> Item(TodoItem todoItem)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View(todoItem);
+            }
 
-        // Write to the console
-        Console.WriteLine($"New todo added - ID: {id}: Title: {title}: Description: {description}: IsCompleted: {isCompleted}");
+            await _todoService.CreateAsync(todoItem);
 
-        // Send a message to the user
-        return Content($"Added ID {id} {title} Todo with {description} description and {isCompleted} status");
-    }
+            ViewBag.Message = "Todo item added successfully!";
+            return View();
+        }
     }
 }
