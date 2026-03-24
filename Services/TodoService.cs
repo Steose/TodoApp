@@ -10,27 +10,48 @@ namespace TodoApp.Services
 
         public TodoService(IOptions<TodoDatabaseSettings> todoDatabaseSettings)
         {
-            var mongoClient = new MongoClient(todoDatabaseSettings.Value.ConnectionString);
+            var settings = todoDatabaseSettings.Value;
 
-            var mongoDatabase = mongoClient.GetDatabase(todoDatabaseSettings.Value.DatabaseName);
+            if (string.IsNullOrWhiteSpace(settings.ConnectionString))
+            {
+                throw new InvalidOperationException("TodoDatabase:ConnectionString is missing.");
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.DatabaseName))
+            {
+                throw new InvalidOperationException("TodoDatabase:DatabaseName is missing.");
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.TodoCollectionName))
+            {
+                throw new InvalidOperationException("TodoDatabase:TodoCollectionName is missing.");
+            }
+
+#pragma warning disable CS0618
+            var mongoClient = new MongoClient(settings.ConnectionString);
+#pragma warning restore CS0618
+
+            var mongoDatabase = mongoClient.GetDatabase(settings.DatabaseName);
 
             _todoCollection = mongoDatabase.GetCollection<TodoItem>(
-                todoDatabaseSettings.Value.TodoCollectionName);
+                settings.TodoCollectionName);
         }
 
         public async Task<List<TodoItem>> GetAsync()
-        {
-            try
-            {
-                return await _todoCollection.Find(_ => true).SortByDescending(x => x.CreatedAt).ToListAsync();
-            }
-            catch (MongoDB.Driver.MongoConnectionException ex)
-            {
-                // Log or handle as needed in production
-                Console.Error.WriteLine($"MongoDB connection error in GetAsync: {ex.Message}");
-                return new List<TodoItem>();
-            }
-        }
+{
+    try
+    {
+        return await _todoCollection
+            .Find(_ => true)
+            .ToListAsync();
+    }
+    catch (MongoConnectionException ex)
+    {
+        Console.Error.WriteLine($"MongoDB connection error in GetAsync: {ex.Message}");
+        return new List<TodoItem>();
+    }
+}
+        
 
         public async Task<TodoItem?> GetAsync(string id)
         {
@@ -38,7 +59,7 @@ namespace TodoApp.Services
             {
                 return await _todoCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
             }
-            catch (MongoDB.Driver.MongoConnectionException ex)
+            catch (MongoConnectionException ex)
             {
                 Console.Error.WriteLine($"MongoDB connection error in GetAsync(id): {ex.Message}");
                 return null;
@@ -51,7 +72,7 @@ namespace TodoApp.Services
             {
                 await _todoCollection.InsertOneAsync(newTodo);
             }
-            catch (MongoDB.Driver.MongoConnectionException ex)
+            catch (MongoConnectionException ex)
             {
                 Console.Error.WriteLine($"MongoDB connection error in CreateAsync: {ex.Message}");
                 throw;
@@ -64,7 +85,7 @@ namespace TodoApp.Services
             {
                 await _todoCollection.ReplaceOneAsync(x => x.Id == id, updatedTodo);
             }
-            catch (MongoDB.Driver.MongoConnectionException ex)
+            catch (MongoConnectionException ex)
             {
                 Console.Error.WriteLine($"MongoDB connection error in UpdateAsync: {ex.Message}");
                 throw;
@@ -77,7 +98,7 @@ namespace TodoApp.Services
             {
                 await _todoCollection.DeleteOneAsync(x => x.Id == id);
             }
-            catch (MongoDB.Driver.MongoConnectionException ex)
+            catch (MongoConnectionException ex)
             {
                 Console.Error.WriteLine($"MongoDB connection error in RemoveAsync: {ex.Message}");
                 throw;
