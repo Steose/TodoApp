@@ -51,13 +51,13 @@ jobs:
 
     - name: Stop the application service
       run: |
-        sudo systemctl stop GithubActionsDemo.service        
+        sudo systemctl stop TodoApp.service        
 
     - name: Deploy the the application
       run: |
-        sudo rm -Rf /opt/GithubActionsDemo || true
-        sudo cp -r /home/azureuser/actions-runner/_work/GithubActionsDemo/GithubActionsDemo/ /opt/GithubActionsDemo        
+        sudo rm -Rf /opt/TodoApp || true
+        sudo cp -r /home/azureuser/actions-runner/_work/TodoApp/TodoApp/ /opt/TodoApp        
 
     - name: Start the application service
       run: |
-        sudo systemctl start GithubActionsDemo.service        
+        sudo systemctl start TodoApp.service        
