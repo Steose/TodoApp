@@ -1,0 +1,57 @@
+#cloud-config
+package_update: true
+packages:
+  - wget
+  - curl
+  - git
+
+# Install .NET 10 SDK and Runtime
+runcmd:
+  - |
+    apt-get update
+    apt-get install -y dotnet-sdk-10 dotnet-runtime-10
+  - |
+    # Create app directory
+    mkdir -p /opt/todoapp
+    chown azureuser:azureuser /opt/todoapp
+  - |
+    # Create systemd service file for the TodoApp
+    cat > /etc/systemd/system/todoapp.service << 'EOF'
+    [Unit]
+    Description=TodoApp ASP.NET Core Application
+    After=network.target
+    
+    [Service]
+    Type=notify
+    User=azureuser
+    WorkingDirectory=/opt/todoapp
+    ExecStart=/usr/bin/dotnet /opt/todoapp/TodoApp.dll
+    Restart=on-failure
+    RestartSec=5
+    StandardOutput=inherit
+    StandardError=inherit
+    Environment="ASPNETCORE_URLS=http://0.0.0.0:8080"
+    Environment="ASPNETCORE_ENVIRONMENT=Production"
+    
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+  - |
+    # Enable and start the service (will fail gracefully if app not deployed yet)
+    systemctl daemon-reload
+    systemctl enable todoapp.service
+
+write_files:
+  - path: /opt/todoapp/startup.sh
+    permissions: '0755'
+    owner: azureuser:azureuser
+    content: |
+      #!/bin/bash
+      # Deploy script - place your TodoApp published files in /opt/todoapp
+      # Then run: systemctl start todoapp
+      echo "TodoApp deployment directory ready at /opt/todoapp"
+      echo "To deploy your app:"
+      echo "  1. Build locally: dotnet publish -c Release -o ./publish"
+      echo "  2. Copy to VM: scp -r ./publish/* azureuser@10.0.2.4:/opt/todoapp/"
+      echo "  3. Start service: ssh azureuser@10.0.2.4 'sudo systemctl start todoapp'"
+      echo "  4. Check status: ssh azureuser@10.0.2.4 'systemctl status todoapp'"
