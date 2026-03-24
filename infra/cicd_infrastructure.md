@@ -98,7 +98,7 @@ touch .github/workflows/cicd.yaml
 Add the following content to `.github/workflows/cicd.yaml`:
 
 ```yaml
-name: TodoApp CI/CD
+name: TodoApp
 
 on:
   push:
@@ -114,20 +114,20 @@ jobs:
     - name: Install .NET SDK
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: '10.0.x'
 
     - name: Check out this repo
       uses: actions/checkout@v4
 
-    - name: Restore dependencies
+    - name: Restore dependencies (install Nuget packages)
       run: dotnet restore
 
     - name: Build and publish the app
       run: |
         dotnet build --no-restore
-        dotnet publish -c Release -o ./publish
+        dotnet publish -c Release -o ./publish        
 
-    - name: Upload app artifacts
+    - name: Upload app artifacts to Github
       uses: actions/upload-artifact@v4
       with:
         name: app-artifacts
@@ -136,10 +136,9 @@ jobs:
   deploy:
     runs-on: self-hosted
     needs: build
-    if: github.ref == 'refs/heads/main'
 
     steps:
-    - name: Download artifacts
+    - name: Download the artifacts from Github (from the build job)
       uses: actions/download-artifact@v4
       with:
         name: app-artifacts
@@ -148,8 +147,8 @@ jobs:
       run: |
         echo "Current directory contents:"
         ls -la
-        echo "Publish directory contents:"
-        ls -la ./publish/
+        echo "Checking for app files:"
+        ls -la TodoApp.dll || echo "TodoApp.dll not found"
 
     - name: Stop the application service
       run: |
@@ -159,12 +158,11 @@ jobs:
       run: |
         sudo rm -rf /opt/todoapp
         sudo mkdir -p /opt/todoapp
-        sudo cp -r ./publish/* /opt/todoapp/
+        sudo cp -r ./* /opt/todoapp/ 2>/dev/null || sudo cp -r * /opt/todoapp/
         sudo chown -R azureuser:azureuser /opt/todoapp
 
     - name: Start the application service
       run: |
-        sudo systemctl daemon-reload
         sudo systemctl start todoapp.service
 
     - name: Check service status
@@ -198,6 +196,25 @@ Go to your GitHub repository → Actions tab to see the workflow running. The pi
    - Stop the app service
    - Deploy new files
    - Start the app service
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+1. **Systemd Service Timeouts**: If the TodoApp service fails to start with timeout errors, ensure the systemd service file has `Type=simple` instead of `Type=exec` for ASP.NET Core applications.
+
+2. **Artifact Path Issues**: The deploy job downloads artifacts to the current directory. Use `sudo cp -r ./* /opt/todoapp/` to copy all files from the artifact directory.
+
+3. **Service Permissions**: Ensure the service runs under the correct user (azureuser) and has proper ownership of the application files.
+
+4. **Runner Registration**: If the self-hosted runner fails to register, ensure you use a fresh registration token from GitHub Settings → Actions → Runners.
+
+### Monitoring and Logs
+
+- Check GitHub Actions logs in the repository's Actions tab
+- Monitor service status: `sudo systemctl status todoapp.service`
+- View application logs: `journalctl -u todoapp.service -f`
+- Check nginx proxy logs: `sudo tail -f /var/log/nginx/error.log`
    - Verify deployment
 
 ## Verification
