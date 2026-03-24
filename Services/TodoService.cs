@@ -18,20 +18,71 @@ namespace TodoApp.Services
                 todoDatabaseSettings.Value.TodoCollectionName);
         }
 
-        public async Task<List<TodoItem>> GetAsync() =>
-            await _todoCollection.Find(_ => true).SortByDescending(x => x.CreatedAt).ToListAsync();
+        public async Task<List<TodoItem>> GetAsync()
+        {
+            try
+            {
+                return await _todoCollection.Find(_ => true).SortByDescending(x => x.CreatedAt).ToListAsync();
+            }
+            catch (MongoDB.Driver.MongoConnectionException ex)
+            {
+                // Log or handle as needed in production
+                Console.Error.WriteLine($"MongoDB connection error in GetAsync: {ex.Message}");
+                return new List<TodoItem>();
+            }
+        }
 
-        public async Task<TodoItem?> GetAsync(string id) =>
-            await _todoCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
+        public async Task<TodoItem?> GetAsync(string id)
+        {
+            try
+            {
+                return await _todoCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
+            }
+            catch (MongoDB.Driver.MongoConnectionException ex)
+            {
+                Console.Error.WriteLine($"MongoDB connection error in GetAsync(id): {ex.Message}");
+                return null;
+            }
+        }
 
-        public async Task CreateAsync(TodoItem newTodo) =>
-            await _todoCollection.InsertOneAsync(newTodo);
+        public async Task CreateAsync(TodoItem newTodo)
+        {
+            try
+            {
+                await _todoCollection.InsertOneAsync(newTodo);
+            }
+            catch (MongoDB.Driver.MongoConnectionException ex)
+            {
+                Console.Error.WriteLine($"MongoDB connection error in CreateAsync: {ex.Message}");
+                throw;
+            }
+        }
 
-        public async Task UpdateAsync(string id, TodoItem updatedTodo) =>
-            await _todoCollection.ReplaceOneAsync(x => x.Id == id, updatedTodo);
+        public async Task UpdateAsync(string id, TodoItem updatedTodo)
+        {
+            try
+            {
+                await _todoCollection.ReplaceOneAsync(x => x.Id == id, updatedTodo);
+            }
+            catch (MongoDB.Driver.MongoConnectionException ex)
+            {
+                Console.Error.WriteLine($"MongoDB connection error in UpdateAsync: {ex.Message}");
+                throw;
+            }
+        }
 
-        public async Task RemoveAsync(string id) =>
-            await _todoCollection.DeleteOneAsync(x => x.Id == id);
+        public async Task RemoveAsync(string id)
+        {
+            try
+            {
+                await _todoCollection.DeleteOneAsync(x => x.Id == id);
+            }
+            catch (MongoDB.Driver.MongoConnectionException ex)
+            {
+                Console.Error.WriteLine($"MongoDB connection error in RemoveAsync: {ex.Message}");
+                throw;
+            }
+        }
 
         public async Task ToggleCompleteAsync(string id)
         {

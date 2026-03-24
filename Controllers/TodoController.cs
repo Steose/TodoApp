@@ -4,6 +4,8 @@ using TodoApp.Services;
 
 namespace TodoApp.Controllers
 {
+    [Route("Todo")]
+    [Route("Todos")]
     public class TodoController : Controller
     {
         private readonly ITodoService _todoService;
@@ -13,18 +15,32 @@ namespace TodoApp.Controllers
             _todoService = todoService;
         }
 
+        [HttpGet("")]
+        [HttpGet("Index")]
         public async Task<IActionResult> Index()
         {
-            var todos = await _todoService.GetAsync();
-            return View(todos);
+            try
+            {
+                var todos = await _todoService.GetAsync();
+                if (!todos.Any())
+                    ViewBag.Info = "No todos found or unable to connect to MongoDB. Please ensure MongoDB is running at localhost:27017.";
+                return View(todos);
+            }
+            catch (MongoDB.Driver.MongoConnectionException ex)
+            {
+                ViewBag.Error = "Failed to connect to MongoDB. Please start MongoDB and retry.";
+                Console.Error.WriteLine($"MongoDB connection exception in controller Index: {ex.Message}");
+                return View(new List<TodoItem>());
+            }
         }
 
+        [HttpGet("Create")]
         public IActionResult Create()
         {
             return View();
         }
 
-        [HttpPost]
+        [HttpPost("Create")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(TodoItem todoItem)
         {
@@ -35,6 +51,7 @@ namespace TodoApp.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        [HttpGet("Edit/{id}")]
         public async Task<IActionResult> Edit(string id)
         {
             var todo = await _todoService.GetAsync(id);
@@ -45,7 +62,7 @@ namespace TodoApp.Controllers
             return View(todo);
         }
 
-        [HttpPost]
+        [HttpPost("Edit/{id}")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(string id, TodoItem todoItem)
         {
@@ -63,6 +80,7 @@ namespace TodoApp.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        [HttpGet("Delete/{id}")]
         public async Task<IActionResult> Delete(string id)
         {
             var todo = await _todoService.GetAsync(id);
@@ -73,7 +91,7 @@ namespace TodoApp.Controllers
             return View(todo);
         }
 
-        [HttpPost, ActionName("Delete")]
+        [HttpPost("Delete/{id}"), ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(string id)
         {
@@ -86,7 +104,7 @@ namespace TodoApp.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        [HttpPost]
+        [HttpPost("ToggleComplete/{id}")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleComplete(string id)
         {
@@ -94,12 +112,13 @@ namespace TodoApp.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        [HttpGet("Item")]
         public IActionResult Item()
         {
             return View();
         }
 
-        [HttpPost]
+        [HttpPost("Item")]
         public async Task<IActionResult> Item(TodoItem todoItem)
         {
             if (!ModelState.IsValid)
