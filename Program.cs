@@ -6,7 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
-// Configure MongoDB settings
+// Configure TodoDatabase settings
 builder.Services.Configure<TodoDatabaseSettings>(
     builder.Configuration.GetSection("TodoDatabase"));
 
