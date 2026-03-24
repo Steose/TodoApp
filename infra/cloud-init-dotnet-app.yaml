@@ -22,7 +22,7 @@ runcmd:
     After=network.target
     
     [Service]
-    Type=notify
+    Type=simple
     User=azureuser
     WorkingDirectory=/opt/todoapp
     ExecStart=/usr/bin/dotnet /opt/todoapp/TodoApp.dll
