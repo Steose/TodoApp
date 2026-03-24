@@ -45,18 +45,34 @@ deploy:
       with:
         name: app-artifacts
 
+    - name: Verify downloaded files
+      run: |
+        echo "Current directory contents:"
+        ls -la
+        echo "Publish directory contents:"
+        ls -la ./publish/
+
     - name: Stop the application service
       run: |
-        sudo systemctl stop TodoApp.service        
+        sudo systemctl stop todoapp.service || true
 
-    - name: Deploy the the application
+    - name: Deploy the application
       run: |
-        sudo rm -Rf /opt/TodoApp || true
-        sudo cp -r /home/azureuser/actions-runner/_work/TodoApp/TodoApp/ /opt/TodoApp        
+        sudo rm -rf /opt/todoapp
+        sudo mkdir -p /opt/todoapp
+        sudo cp -r ./publish/* /opt/todoapp/
+        sudo chown -R azureuser:azureuser /opt/todoapp
 
     - name: Start the application service
       run: |
-        sudo systemctl start TodoApp.service 
+        sudo systemctl daemon-reload
+        sudo systemctl start todoapp.service
+
+    - name: Check service status
+      run: |
+        sudo systemctl status todoapp.service --no-pager
+        echo "Service logs:"
+        journalctl -u todoapp.service -n 20 --no-pager 
 
 
 
