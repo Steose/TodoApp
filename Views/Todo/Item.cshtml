@@ -1,22 +1,35 @@
+@model TodoApp.Models.TodoItem
+
 @{
     ViewData["Title"] = "Todo Item";
 }
 
 <h2>Add a new todo item</h2>
+@if (ViewBag.Message != null)
+{
+    <p style="color: green;">@ViewBag.Message</p>
+}
 
-<form action="/Todo/Item" method="post">
-
-    <label for="id">ID:</label>
-    <input type="text" id="id" name="id">
-
-    <label for="title">Title:</label>
-    <input type="text" id="title" name="title">
-
-    <label for="description">Description:</label>
-    <input type="text" id="description" name="description">
-
-    <label for="isCompleted">Is Completed:</label>
-    <input type="checkbox" id="isCompleted" name="isCompleted">
-
+<form asp-action="Item" method="post">
+    <div class="form-group">
+        <label asp-for="Id"></label>
+        <input asp-for="Id" class="form-control" />
+        <span asp-validation-for="Id" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="Title"></label>
+        <input asp-for="Title" class="form-control" />
+        <span asp-validation-for="Title" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="Description"></label>
+        <input asp-for="Description" class="form-control" />
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="IsCompleted"></label>
+        <input asp-for="IsCompleted" class="form-control" />
+        <span asp-validation-for="IsCompleted" class="text-danger"></span>
+    </div>
     <button type="submit">Add Todo</button>
 </form>
