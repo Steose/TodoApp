@@ -11,7 +11,7 @@ namespace TodoApp.Models
         [Required]
         [StringLength(100)]
         [Display(Name = "Task Title")]
-        public string Title { get; set; } = string.Empty;
+        public string? Title { get; set; } = string.Empty;
 
         [StringLength(300)]
         public string? Description { get; set; }
