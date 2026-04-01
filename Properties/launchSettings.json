@@ -1,20 +1,12 @@
 ﻿{
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "http": {
+    "TodoApp": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "http://localhost:5182",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
-    },
-    "https": {
-      "commandName": "Project",
-      "dotnetRunMessages": true,
-      "launchBrowser": true,
-      "applicationUrl": "https://localhost:7153;http://localhost:5182",
+      "launchUrl": "Todo",
+      "applicationUrl": "http://localhost:7167;http://localhost:5167",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
