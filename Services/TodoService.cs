@@ -1,120 +1,51 @@
-using Microsoft.Extensions.Options;
-using MongoDB.Driver;
-using TodoApp.Models;
+using TodoApp.Models; // TodoItem model
+using TodoApp.Repositories; // Repository interface
 
 namespace TodoApp.Services
 {
     public class TodoService : ITodoService
     {
-        private readonly IMongoCollection<TodoItem> _todoCollection;
+        private readonly ITodoRepository _todoRepository; // Repository dependency
 
-        public TodoService(IOptions<TodoDatabaseSettings> todoDatabaseSettings)
+        public TodoService(ITodoRepository todoRepository)
         {
-            var settings = todoDatabaseSettings.Value;
-
-            if (string.IsNullOrWhiteSpace(settings.ConnectionString))
-            {
-                throw new InvalidOperationException("TodoDatabase:ConnectionString is missing.");
-            }
-
-            if (string.IsNullOrWhiteSpace(settings.DatabaseName))
-            {
-                throw new InvalidOperationException("TodoDatabase:DatabaseName is missing.");
-            }
-
-            if (string.IsNullOrWhiteSpace(settings.TodoCollectionName))
-            {
-                throw new InvalidOperationException("TodoDatabase:TodoCollectionName is missing.");
-            }
-
-#pragma warning disable CS0618
-            var mongoClient = new MongoClient(settings.ConnectionString);
-#pragma warning restore CS0618
-
-            var mongoDatabase = mongoClient.GetDatabase(settings.DatabaseName);
-
-            _todoCollection = mongoDatabase.GetCollection<TodoItem>(
-                settings.TodoCollectionName);
+            _todoRepository = todoRepository;
         }
 
         public async Task<List<TodoItem>> GetAsync()
-{
-    try
-    {
-        return await _todoCollection
-            .Find(_ => true)
-            .ToListAsync();
-    }
-    catch (MongoConnectionException ex)
-    {
-        Console.Error.WriteLine($"MongoDB connection error in GetAsync: {ex.Message}");
-        return new List<TodoItem>();
-    }
-}
-        
+        {
+            // Return all todos from repository
+            return await _todoRepository.GetAllAsync();
+        }
 
         public async Task<TodoItem?> GetAsync(string id)
         {
-            try
-            {
-                return await _todoCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
-            }
-            catch (MongoConnectionException ex)
-            {
-                Console.Error.WriteLine($"MongoDB connection error in GetAsync(id): {ex.Message}");
-                return null;
-            }
+            // Return one todo from repository
+            return await _todoRepository.GetByIdAsync(id);
         }
 
-        public async Task CreateAsync(TodoItem newTodo)
+        public async Task CreateAsync(TodoItem todoItem)
         {
-            try
-            {
-                await _todoCollection.InsertOneAsync(newTodo);
-            }
-            catch (MongoConnectionException ex)
-            {
-                Console.Error.WriteLine($"MongoDB connection error in CreateAsync: {ex.Message}");
-                throw;
-            }
+            // Pass create request to repository
+            await _todoRepository.CreateAsync(todoItem);
         }
 
-        public async Task UpdateAsync(string id, TodoItem updatedTodo)
+        public async Task UpdateAsync(string id, TodoItem todoItem)
         {
-            try
-            {
-                await _todoCollection.ReplaceOneAsync(x => x.Id == id, updatedTodo);
-            }
-            catch (MongoConnectionException ex)
-            {
-                Console.Error.WriteLine($"MongoDB connection error in UpdateAsync: {ex.Message}");
-                throw;
-            }
+            // Pass update request to repository
+            await _todoRepository.UpdateAsync(id, todoItem);
         }
 
         public async Task RemoveAsync(string id)
         {
-            try
-            {
-                await _todoCollection.DeleteOneAsync(x => x.Id == id);
-            }
-            catch (MongoConnectionException ex)
-            {
-                Console.Error.WriteLine($"MongoDB connection error in RemoveAsync: {ex.Message}");
-                throw;
-            }
+            // Pass delete request to repository
+            await _todoRepository.DeleteAsync(id);
         }
 
         public async Task ToggleCompleteAsync(string id)
         {
-            var todo = await GetAsync(id);
-
-            if (todo is null)
-                return;
-
-            todo.IsCompleted = !todo.IsCompleted;
-
-            await UpdateAsync(id, todo);
+            // Pass toggle request to repository
+            await _todoRepository.ToggleCompleteAsync(id);
         }
     }
 }

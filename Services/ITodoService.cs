@@ -4,11 +4,11 @@ namespace TodoApp.Services
 {
     public interface ITodoService
     {
-        Task<List<TodoItem>> GetAsync();
-        Task<TodoItem?> GetAsync(string id);
-        Task CreateAsync(TodoItem newTodo);
-        Task UpdateAsync(string id, TodoItem updatedTodo);
-        Task RemoveAsync(string id);
-        Task ToggleCompleteAsync(string id);
+        Task<List<TodoItem>> GetAsync(); // Gets all todos
+        Task<TodoItem?> GetAsync(string id); // Gets one todo by id
+        Task CreateAsync(TodoItem todoItem); // Creates a todo
+        Task UpdateAsync(string id, TodoItem todoItem); // Updates a todo
+        Task RemoveAsync(string id); // Deletes a todo
+        Task ToggleCompleteAsync(string id); // Toggles completed state
     }
 }
