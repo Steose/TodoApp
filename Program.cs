@@ -1,36 +1,45 @@
-using TodoApp.Models;
-using TodoApp.Services;
+using TodoApp.Options; // Option classes
+using TodoApp.Repositories; // Repository interfaces and implementations
+using TodoApp.Services; // Service interfaces and implementations
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Add MVC services
 builder.Services.AddControllersWithViews();
 
-// Configure TodoDatabase settings
-builder.Services.Configure<TodoDatabaseSettings>(
-    builder.Configuration.GetSection("TodoDatabase"));
+// Bind configuration sections to options classes
+builder.Services.Configure<DatabaseProviderOptions>(
+    builder.Configuration.GetSection("DatabaseProvider"));
 
-// Register TodoService
+builder.Services.Configure<MongoDbOptions>(
+    builder.Configuration.GetSection("MongoDb"));
+
+builder.Services.Configure<CosmosMongoOptions>(
+    builder.Configuration.GetSection("CosmosMongo"));
+
+// Register repository and service with dependency injection
+builder.Services.AddSingleton<ITodoRepository, TodoRepository>();
 builder.Services.AddSingleton<ITodoService, TodoService>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure HTTP request pipeline
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
-app.UseStaticFiles();
+app.UseHttpsRedirection(); // Redirect HTTP to HTTPS
+app.UseStaticFiles(); // Serve CSS/JS/images
 
 app.UseRouting();
 
 app.UseAuthorization();
 
+// Default route
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Todo}/{action=Index}/{id?}");
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
