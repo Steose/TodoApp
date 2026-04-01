@@ -1,14 +1,15 @@
-using Microsoft.AspNetCore.Mvc;
-using TodoApp.Models;
-using TodoApp.Services;
+using Microsoft.AspNetCore.Mvc; // MVC features
+using MongoDB.Driver; // Mongo exceptions
+using TodoApp.Models; // TodoItem
+using TodoApp.Services; // ITodoService
 
 namespace TodoApp.Controllers
 {
-    [Route("Todo")]
-    [Route("Todos")]
+    [Route("Todo")] // Base route /Todo
+    [Route("Todos")] // Base route /Todos
     public class TodoController : Controller
     {
-        private readonly ITodoService _todoService;
+        private readonly ITodoService _todoService; // Service dependency
 
         public TodoController(ITodoService todoService)
         {
@@ -17,19 +18,32 @@ namespace TodoApp.Controllers
 
         [HttpGet("")]
         [HttpGet("Index")]
+        [HttpGet("All")]
+        [HttpGet("Items")]
         public async Task<IActionResult> Index()
         {
             try
             {
+                // Get all todo items
                 var todos = await _todoService.GetAsync();
+
                 if (!todos.Any())
-                    ViewBag.Info = "No todos found or unable to connect to MongoDB. Please ensure MongoDB is running at localhost:27017.";
+                {
+                    ViewBag.Info = "No todo items found.";
+                }
+
                 return View(todos);
             }
-            catch (MongoDB.Driver.MongoConnectionException ex)
+            catch (MongoConnectionException ex)
             {
-                ViewBag.Error = "Failed to connect to MongoDB. Please start MongoDB and retry.";
-                Console.Error.WriteLine($"MongoDB connection exception in controller Index: {ex.Message}");
+                ViewBag.Error = "Failed to connect to the database.";
+                Console.Error.WriteLine($"MongoDB connection error: {ex.Message}");
+                return View(new List<TodoItem>());
+            }
+            catch (Exception ex)
+            {
+                ViewBag.Error = "An unexpected error occurred while loading todo items.";
+                Console.Error.WriteLine($"Unexpected error: {ex.Message}");
                 return View(new List<TodoItem>());
             }
         }
@@ -37,7 +51,8 @@ namespace TodoApp.Controllers
         [HttpGet("Create")]
         public IActionResult Create()
         {
-            return View();
+            // Return empty create form
+            return View(new TodoItem());
         }
 
         [HttpPost("Create")]
@@ -45,19 +60,29 @@ namespace TodoApp.Controllers
         public async Task<IActionResult> Create(TodoItem todoItem)
         {
             if (!ModelState.IsValid)
+            {
                 return View(todoItem);
+            }
 
             await _todoService.CreateAsync(todoItem);
+
             return RedirectToAction(nameof(Index));
         }
 
         [HttpGet("Edit/{id}")]
         public async Task<IActionResult> Edit(string id)
         {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return BadRequest();
+            }
+
             var todo = await _todoService.GetAsync(id);
 
             if (todo == null)
+            {
                 return NotFound();
+            }
 
             return View(todo);
         }
@@ -67,40 +92,64 @@ namespace TodoApp.Controllers
         public async Task<IActionResult> Edit(string id, TodoItem todoItem)
         {
             if (id != todoItem.Id)
+            {
                 return BadRequest();
+            }
 
             if (!ModelState.IsValid)
+            {
                 return View(todoItem);
+            }
 
             var existingTodo = await _todoService.GetAsync(id);
+
             if (existingTodo == null)
+            {
                 return NotFound();
+            }
 
             await _todoService.UpdateAsync(id, todoItem);
+
             return RedirectToAction(nameof(Index));
         }
 
         [HttpGet("Delete/{id}")]
         public async Task<IActionResult> Delete(string id)
         {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return BadRequest();
+            }
+
             var todo = await _todoService.GetAsync(id);
 
             if (todo == null)
+            {
                 return NotFound();
+            }
 
             return View(todo);
         }
 
-        [HttpPost("Delete/{id}"), ActionName("Delete")]
+        [HttpPost("Delete/{id}")]
+        [ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(string id)
         {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return BadRequest();
+            }
+
             var todo = await _todoService.GetAsync(id);
 
             if (todo == null)
+            {
                 return NotFound();
+            }
 
             await _todoService.RemoveAsync(id);
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -108,17 +157,43 @@ namespace TodoApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleComplete(string id)
         {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return BadRequest();
+            }
+
             await _todoService.ToggleCompleteAsync(id);
+
             return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet("Details/{id}")]
+        public async Task<IActionResult> Details(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return BadRequest();
+            }
+
+            var todo = await _todoService.GetAsync(id);
+
+            if (todo == null)
+            {
+                return NotFound();
+            }
+
+            return View(todo);
         }
 
         [HttpGet("Item")]
         public IActionResult Item()
         {
-            return View();
+            // This route is only for quick-add form
+            return View(new TodoItem());
         }
 
         [HttpPost("Item")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Item(TodoItem todoItem)
         {
             if (!ModelState.IsValid)
@@ -128,8 +203,9 @@ namespace TodoApp.Controllers
 
             await _todoService.CreateAsync(todoItem);
 
-            ViewBag.Message = "Todo item added successfully!";
-            return View();
+            TempData["SuccessMessage"] = "Todo item added successfully!";
+
+            return RedirectToAction(nameof(Index));
         }
     }
 }
