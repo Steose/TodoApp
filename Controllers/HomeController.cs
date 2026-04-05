@@ -9,7 +9,8 @@ namespace TodoApp.Controllers
         public IActionResult Index()
         {
             // Redirect home page to Todo list
-            return RedirectToAction("Index", "Todo");
+            //return RedirectToAction("Index", "Todo");
+            return View();
         }
 
         public IActionResult Privacy()
