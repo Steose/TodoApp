@@ -161,10 +161,46 @@ jobs:
       run: |
         sudo systemctl stop todoapp.service || true
 
+    - name: Normalize deployment secrets
+      run: |
+        RAW_CONNECTION_STRING="${COSMOS_MONGO_CONNECTION_STRING:-}"
+        RAW_DATABASE_NAME="${COSMOS_MONGO_DATABASE_NAME:-}"
+
+        SANITIZED_CONNECTION_STRING="$(printf '%s' "$RAW_CONNECTION_STRING" | tr -d '\r\n')"
+        SANITIZED_DATABASE_NAME="$(printf '%s' "$RAW_DATABASE_NAME" | tr -d '\r\n')"
+
+        test -n "$SANITIZED_CONNECTION_STRING"
+        test -n "$SANITIZED_DATABASE_NAME"
+
+        case "$SANITIZED_CONNECTION_STRING" in
+          COSMOS_MONGO_CONNECTION_STRING=*|*=mongodb://*)
+            echo "COSMOS_MONGO_CONNECTION_STRING must contain only the raw Mongo connection string, not NAME=value." >&2
+            exit 1
+            ;;
+        esac
+
+        case "$SANITIZED_DATABASE_NAME" in
+          COSMOS_MONGO_DATABASE_NAME=*|*=todoappdb|*=*)
+            echo "COSMOS_MONGO_DATABASE_NAME must contain only the raw database name, not NAME=value." >&2
+            exit 1
+            ;;
+        esac
+
+        case "$SANITIZED_CONNECTION_STRING" in
+          mongodb://*) ;;
+          *)
+            echo "COSMOS_MONGO_CONNECTION_STRING must start with mongodb://." >&2
+            exit 1
+            ;;
+        esac
+
+        printf 'SANITIZED_CONNECTION_STRING=%s\n' "$SANITIZED_CONNECTION_STRING" >> "$GITHUB_ENV"
+        printf 'SANITIZED_DATABASE_NAME=%s\n' "$SANITIZED_DATABASE_NAME" >> "$GITHUB_ENV"
+
     - name: Rewrite the application service configuration
       run: |
-        test -n "$COSMOS_MONGO_CONNECTION_STRING"
-        test -n "$COSMOS_MONGO_DATABASE_NAME"
+        test -n "$SANITIZED_CONNECTION_STRING"
+        test -n "$SANITIZED_DATABASE_NAME"
         sudo tee "$SERVICE_FILE" > /dev/null <<EOF
         [Unit]
         Description=TodoApp ASP.NET Core Application
@@ -182,8 +218,8 @@ jobs:
         Environment="ASPNETCORE_URLS=http://0.0.0.0:8080"
         Environment="ASPNETCORE_ENVIRONMENT=Production"
         Environment="DatabaseProvider__Provider=CosmosMongo"
-        Environment="CosmosMongo__ConnectionString=$COSMOS_MONGO_CONNECTION_STRING"
-        Environment="CosmosMongo__DatabaseName=$COSMOS_MONGO_DATABASE_NAME"
+        Environment="CosmosMongo__ConnectionString=$SANITIZED_CONNECTION_STRING"
+        Environment="CosmosMongo__DatabaseName=$SANITIZED_DATABASE_NAME"
         Environment="CosmosMongo__TodoCollectionName=Todos"
 
         [Install]
@@ -243,6 +279,13 @@ GitHub secret names must:
 - start with a letter or underscore
 
 For example, `COSMOS_MONGO_CONNECTION_STRING` is valid, but `COSMOS-MONGO-CONNECTION-STRING` and `COSMOS MONGO CONNECTION STRING` are invalid.
+
+The workflow also sanitizes both secret values before writing `todoapp.service`:
+
+- trailing newlines and carriage returns are removed
+- the connection string must start with `mongodb://`
+- the workflow rejects pasted values like `COSMOS_MONGO_CONNECTION_STRING=mongodb://...`
+- the workflow rejects pasted values like `COSMOS_MONGO_DATABASE_NAME=todoappdb`
 
 ### 7. Commit and Push Changes
 
