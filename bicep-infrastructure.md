@@ -42,15 +42,7 @@ cd TodoApp
 
 ### 2. Prepare the Application for Deployment
 
-Update the project to target .NET 9.0 (compatible with current Azure environments):
-
-```bash
-# Edit TodoApp.csproj
-# Change <TargetFramework>net10.0</TargetFramework> to:
-# <TargetFramework>net9.0</TargetFramework>
-```
-
-Build and publish the application:
+The application targets `.NET 9.0`. Build and publish it before copying files to the VM:
 
 ```bash
 dotnet publish -c Release -o ./publish
@@ -115,42 +107,88 @@ az deployment group show --resource-group TodoAppRG --name main --query "propert
 Expected output includes:
 - `reverseProxyPublicIp`: Public IP for accessing the application
 - `bastionPublicIp`: IP for SSH access to VMs
-- `cosmosEndpoint`: Connection string for database
+- `cosmosEndpoint`: Cosmos DB endpoint
 
-### 8. Install .NET Runtime on Application VM
+### 8. Understand the Production App Configuration
 
-The infrastructure includes automated setup, but verify .NET installation:
+The production app VM runs the site behind Nginx on plain HTTP port `8080`.
+
+- Nginx terminates external traffic and forwards requests to the app VM.
+- The app service should listen on `http://0.0.0.0:8080`.
+- The app should use Cosmos DB Mongo API in production, not `mongodb://localhost:27017`.
+- The systemd service should launch the app with `ExecStart=/usr/bin/env dotnet /opt/todoapp/TodoApp.dll`.
+
+The expected environment entries in `todoapp.service` are:
+
+```ini
+Environment="ASPNETCORE_URLS=http://0.0.0.0:8080"
+Environment="ASPNETCORE_ENVIRONMENT=Production"
+Environment="DatabaseProvider__Provider=CosmosMongo"
+Environment="CosmosMongo__ConnectionString=<full Cosmos Mongo connection string>"
+Environment="CosmosMongo__DatabaseName=todoappdb"
+Environment="CosmosMongo__TodoCollectionName=Todos"
+```
+
+### 9. Install .NET Runtime on Application VM
+
+Verify that `dotnet` is installed on the app VM:
 
 ```bash
 # Get bastion IP from deployment outputs
 BASTION_IP=$(az deployment group show --resource-group TodoAppRG --name main --query "properties.outputs.bastionPublicIp.value" -o tsv)
 
 # SSH to app VM via bastion
-ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "dotnet --version"
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "command -v dotnet && dotnet --info"
 ```
 
-If .NET is not installed, install it manually:
+If `dotnet` is missing, add the Microsoft package feed and install the ASP.NET Core runtime:
 
 ```bash
-ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo apt-get update && sudo apt-get install -y wget"
-ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb"
-ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo dpkg -i packages-microsoft-prod.deb && sudo apt-get update"
-ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo apt-get install -y dotnet-sdk-9.0 dotnet-runtime-9.0"
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb"
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo dpkg -i /tmp/packages-microsoft-prod.deb && sudo apt-get update"
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo apt-get install -y aspnetcore-runtime-9.0"
 ```
 
-### 9. Deploy the Application
+### 10. Deploy the Application
 
 Copy the published application to the VM:
 
 ```bash
 # From your local machine (in TodoApp directory)
-scp -o ProxyCommand="ssh -W %h:%p azureuser@$BASTION_IP" -r ./publish/* azureuser@10.0.2.4:/opt/todoapp/
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo systemctl stop todoapp.service || true && sudo rm -rf /opt/todoapp && sudo mkdir -p /opt/todoapp && sudo chown -R azureuser:azureuser /opt/todoapp"
+tar -C publish -cf - . | ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "tar -C /opt/todoapp -xf -"
 ```
 
-Start the application service:
+Write the systemd service with the Cosmos configuration:
 
 ```bash
-ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo systemctl start todoapp"
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 'sudo tee /etc/systemd/system/todoapp.service > /dev/null <<EOF
+[Unit]
+Description=TodoApp ASP.NET Core Application
+After=network.target
+
+[Service]
+Type=simple
+User=azureuser
+WorkingDirectory=/opt/todoapp
+ExecStart=/usr/bin/env dotnet /opt/todoapp/TodoApp.dll
+Restart=on-failure
+RestartSec=5
+StandardOutput=inherit
+StandardError=inherit
+Environment="ASPNETCORE_URLS=http://0.0.0.0:8080"
+Environment="ASPNETCORE_ENVIRONMENT=Production"
+Environment="DatabaseProvider__Provider=CosmosMongo"
+Environment="CosmosMongo__ConnectionString=<full Cosmos Mongo connection string>"
+Environment="CosmosMongo__DatabaseName=todoappdb"
+Environment="CosmosMongo__TodoCollectionName=Todos"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable todoapp.service
+sudo systemctl restart todoapp.service'
 ```
 
 ## Verification
@@ -168,6 +206,14 @@ curl http://$PUBLIC_IP
 ```
 
 Expected result: HTML content showing the TodoApp home page with "Welcome" message.
+
+Verify the Todo page specifically:
+
+```bash
+curl http://$PUBLIC_IP/Todo
+```
+
+Expected result: HTML for the Todo list page. If the database is empty, the page should show `No todo items found.` instead of a connection error.
 
 ### Verify Infrastructure Components
 
@@ -189,8 +235,9 @@ az network nsg list -g TodoAppRG -o table
 Monitor the application service:
 
 ```bash
-ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "systemctl status todoapp"
-ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "journalctl -u todoapp -f"
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo systemctl status todoapp.service --no-pager"
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo journalctl -u todoapp.service -f"
+ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo cat /etc/systemd/system/todoapp.service"
 ```
 
 ## Cleanup
@@ -238,11 +285,23 @@ az cosmosdb delete -g TodoAppRG -n todoappcosmosmongo12345 --yes
 - Verify the TodoApp service is running on the app VM
 - Check nginx configuration on the proxy VM
 - Ensure network security groups allow traffic on ports 80 and 22
+- Verify the app is listening on `0.0.0.0:8080`
+- Verify `todoapp.service` contains the Cosmos environment variables
 
 **Bicep Deployment Failed**
 - Check Azure CLI login: `az account show`
 - Verify resource quotas in your subscription
 - Review deployment errors: `az deployment group show -g TodoAppRG -n main`
+
+**App Starts But Database Fails**
+- If logs mention `localhost:27017`, the VM is still using the default `MongoDb` settings instead of Cosmos
+- Check `/etc/systemd/system/todoapp.service` for `DatabaseProvider__Provider=CosmosMongo`
+- Verify the Cosmos connection string and database name are correct
+
+**Service Fails With `203/EXEC`**
+- `dotnet` is missing or the `ExecStart` path is wrong
+- Verify `command -v dotnet`
+- Use `ExecStart=/usr/bin/env dotnet /opt/todoapp/TodoApp.dll`
 
 **Permission Denied on provision.sh**
 - Run `chmod +x provision.sh` to make the script executable

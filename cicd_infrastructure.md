@@ -106,6 +106,10 @@ on:
     - "main"
   workflow_dispatch:
 
+env:
+  APP_DIR: /opt/todoapp
+  SERVICE_FILE: /etc/systemd/system/todoapp.service
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -136,6 +140,9 @@ jobs:
   deploy:
     runs-on: self-hosted
     needs: build
+    env:
+      COSMOS_MONGO_CONNECTION_STRING: ${{ secrets.COSMOS_MONGO_CONNECTION_STRING }}
+      COSMOS_MONGO_DATABASE_NAME: ${{ secrets.COSMOS_MONGO_DATABASE_NAME }}
 
     steps:
     - name: Download the artifacts from Github (from the build job)
@@ -154,12 +161,43 @@ jobs:
       run: |
         sudo systemctl stop todoapp.service || true
 
+    - name: Rewrite the application service configuration
+      run: |
+        test -n "$COSMOS_MONGO_CONNECTION_STRING"
+        test -n "$COSMOS_MONGO_DATABASE_NAME"
+        sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+        [Unit]
+        Description=TodoApp ASP.NET Core Application
+        After=network.target
+
+        [Service]
+        Type=simple
+        User=azureuser
+        WorkingDirectory=$APP_DIR
+        ExecStart=/usr/bin/env dotnet $APP_DIR/TodoApp.dll
+        Restart=on-failure
+        RestartSec=5
+        StandardOutput=inherit
+        StandardError=inherit
+        Environment="ASPNETCORE_URLS=http://0.0.0.0:8080"
+        Environment="ASPNETCORE_ENVIRONMENT=Production"
+        Environment="DatabaseProvider__Provider=CosmosMongo"
+        Environment="CosmosMongo__ConnectionString=$COSMOS_MONGO_CONNECTION_STRING"
+        Environment="CosmosMongo__DatabaseName=$COSMOS_MONGO_DATABASE_NAME"
+        Environment="CosmosMongo__TodoCollectionName=Todos"
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        sudo systemctl daemon-reload
+        sudo systemctl enable todoapp.service
+
     - name: Deploy the application
       run: |
-        sudo rm -rf /opt/todoapp
-        sudo mkdir -p /opt/todoapp
-        sudo cp -r ./* /opt/todoapp/ 2>/dev/null || sudo cp -r * /opt/todoapp/
-        sudo chown -R azureuser:azureuser /opt/todoapp
+        sudo rm -rf "$APP_DIR"
+        sudo mkdir -p "$APP_DIR"
+        sudo cp -r ./* "$APP_DIR"/ 2>/dev/null || sudo cp -r * "$APP_DIR"/
+        sudo chown -R azureuser:azureuser "$APP_DIR"
 
     - name: Start the application service
       run: |
@@ -171,6 +209,11 @@ jobs:
         echo "Service logs:"
         journalctl -u todoapp.service -n 20 --no-pager
 ```
+
+Before running the workflow, add these GitHub repository secrets:
+
+- `COSMOS_MONGO_CONNECTION_STRING`: Full Cosmos DB Mongo API connection string
+- `COSMOS_MONGO_DATABASE_NAME`: Mongo database name, for example `todoappdb`
 
 ### 7. Commit and Push Changes
 
@@ -194,6 +237,7 @@ Go to your GitHub repository → Actions tab to see the workflow running. The pi
 2. **Deploy job**: Run on your self-hosted runner
    - Download artifacts
    - Stop the app service
+   - Rewrite `todoapp.service` so existing VMs pick up the current Cosmos configuration
    - Deploy new files
    - Start the app service
 
@@ -201,13 +245,17 @@ Go to your GitHub repository → Actions tab to see the workflow running. The pi
 
 ### Common Issues and Solutions
 
-1. **Systemd Service Timeouts**: If the TodoApp service fails to start with timeout errors, ensure the systemd service file has `Type=simple` instead of `Type=exec` for ASP.NET Core applications.
+1. **Systemd Service Failures**: Ensure the service file uses `Type=simple` and `ExecStart=/usr/bin/env dotnet /opt/todoapp/TodoApp.dll`.
 
-2. **Artifact Path Issues**: The deploy job downloads artifacts to the current directory. Use `sudo cp -r ./* /opt/todoapp/` to copy all files from the artifact directory.
+2. **Missing Runtime**: If the service fails with `203/EXEC` or `dotnet: No such file or directory`, install the Microsoft package feed and `aspnetcore-runtime-9.0` on the VM.
 
-3. **Service Permissions**: Ensure the service runs under the correct user (azureuser) and has proper ownership of the application files.
+3. **Artifact Path Issues**: The deploy job downloads artifacts to the current directory. The workflow copies them into `/opt/todoapp`.
 
-4. **Runner Registration**: If the self-hosted runner fails to register, ensure you use a fresh registration token from GitHub Settings → Actions → Runners.
+4. **Service Permissions**: Ensure the service runs under the correct user (`azureuser`) and has proper ownership of the application files.
+
+5. **Runner Registration**: If the self-hosted runner fails to register, ensure you use a fresh registration token from GitHub Settings → Actions → Runners.
+
+6. **Wrong Database Provider**: If the app logs mention `localhost:27017`, the service rewrite step did not apply and the app is still using the default `MongoDb` provider.
 
 ### Monitoring and Logs
 
@@ -307,12 +355,16 @@ az group delete --resource-group TodoAppRG --yes
 **Deploy Job Failing**
 - Verify the systemd service name matches (`todoapp.service`)
 - Check file permissions on `/opt/todoapp`
-- Ensure the app VM has .NET runtime installed
+- Ensure the app VM has `.NET 9` ASP.NET Core runtime installed
+- Verify the GitHub secrets `COSMOS_MONGO_CONNECTION_STRING` and `COSMOS_MONGO_DATABASE_NAME` are set
+- Check that the `Rewrite the application service configuration` step succeeded
 
 **Application Not Starting**
 - Check service logs: `journalctl -u todoapp.service`
 - Verify the published files are in the correct location
-- Test manually: `cd /opt/todoapp && dotnet TodoApp.dll`
+- Verify `command -v dotnet`
+- Verify `/etc/systemd/system/todoapp.service` contains the Cosmos environment variables
+- Test manually: `cd /opt/todoapp && /usr/bin/env dotnet TodoApp.dll --urls "http://0.0.0.0:8080"`
 
 ### Debug Commands
 
@@ -331,7 +383,7 @@ journalctl -u todoapp.service -f
 
 # Test application manually
 cd /opt/todoapp
-dotnet TodoApp.dll --urls "http://0.0.0.0:8080"
+/usr/bin/env dotnet TodoApp.dll --urls "http://0.0.0.0:8080"
 ```
 
 ### Security Considerations
