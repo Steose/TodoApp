@@ -215,6 +215,35 @@ Before running the workflow, add these GitHub repository secrets:
 - `COSMOS_MONGO_CONNECTION_STRING`: Full Cosmos DB Mongo API connection string
 - `COSMOS_MONGO_DATABASE_NAME`: Mongo database name, for example `todoappdb`
 
+If the deploy job fails at the `Rewrite the application service configuration` step with output similar to this:
+
+```text
+test -n "$COSMOS_MONGO_CONNECTION_STRING"
+test -n "$COSMOS_MONGO_DATABASE_NAME"
+...
+env:
+  COSMOS_MONGO_CONNECTION_STRING:
+  COSMOS_MONGO_DATABASE_NAME:
+Error: Process completed with exit code 1.
+```
+
+then the secrets are missing or empty in GitHub Actions.
+
+Add them in GitHub at `Settings -> Secrets and variables -> Actions`, then rerun the workflow.
+
+Use these exact secret names:
+
+- `COSMOS_MONGO_CONNECTION_STRING`
+- `COSMOS_MONGO_DATABASE_NAME`
+
+GitHub secret names must:
+
+- contain only letters, numbers, and underscores
+- not contain spaces or hyphens
+- start with a letter or underscore
+
+For example, `COSMOS_MONGO_CONNECTION_STRING` is valid, but `COSMOS-MONGO-CONNECTION-STRING` and `COSMOS MONGO CONNECTION STRING` are invalid.
+
 ### 7. Commit and Push Changes
 
 ```bash
@@ -256,6 +285,8 @@ Go to your GitHub repository → Actions tab to see the workflow running. The pi
 5. **Runner Registration**: If the self-hosted runner fails to register, ensure you use a fresh registration token from GitHub Settings → Actions → Runners.
 
 6. **Wrong Database Provider**: If the app logs mention `localhost:27017`, the service rewrite step did not apply and the app is still using the default `MongoDb` provider.
+
+7. **GitHub Secret Validation Error**: If GitHub refuses to save a secret name, use only letters, numbers, and underscores. The workflow expects `COSMOS_MONGO_CONNECTION_STRING` and `COSMOS_MONGO_DATABASE_NAME`.
 
 ### Monitoring and Logs
 
@@ -358,6 +389,8 @@ az group delete --resource-group TodoAppRG --yes
 - Ensure the app VM has `.NET 9` ASP.NET Core runtime installed
 - Verify the GitHub secrets `COSMOS_MONGO_CONNECTION_STRING` and `COSMOS_MONGO_DATABASE_NAME` are set
 - Check that the `Rewrite the application service configuration` step succeeded
+- If the workflow log shows both secret values as blank, recreate the secrets in `Settings -> Secrets and variables -> Actions`
+- If GitHub rejects the secret name, remove spaces and hyphens and use underscores only
 
 **Application Not Starting**
 - Check service logs: `journalctl -u todoapp.service`
