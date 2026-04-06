@@ -25,13 +25,17 @@ runcmd:
     Type=simple
     User=azureuser
     WorkingDirectory=/opt/todoapp
-    ExecStart=/usr/bin/dotnet /opt/todoapp/TodoApp.dll
+    ExecStart=/usr/bin/env dotnet /opt/todoapp/TodoApp.dll
     Restart=on-failure
     RestartSec=5
     StandardOutput=inherit
     StandardError=inherit
     Environment="ASPNETCORE_URLS=http://0.0.0.0:8080"
     Environment="ASPNETCORE_ENVIRONMENT=Production"
+    Environment="DatabaseProvider__Provider=CosmosMongo"
+    Environment="CosmosMongo__ConnectionString=__COSMOS_CONNECTION_STRING__"
+    Environment="CosmosMongo__DatabaseName=__COSMOS_DATABASE_NAME__"
+    Environment="CosmosMongo__TodoCollectionName=Todos"
     
     [Install]
     WantedBy=multi-user.target

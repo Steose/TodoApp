@@ -7,6 +7,7 @@ namespace TodoApp.Repositories
 {
     public class TodoRepository : ITodoRepository
     {
+        private const string TodoPartitionKey = "TodoItem";
         private readonly IMongoCollection<TodoItem> _todoCollection; // Mongo collection for todos
 
         public TodoRepository(
@@ -61,13 +62,22 @@ namespace TodoApp.Repositories
 
             // Get collection
             _todoCollection = database.GetCollection<TodoItem>(collectionName);
+
+            // Cosmos Mongo needs an index that matches the partition filter and sort.
+            var listIndex = new CreateIndexModel<TodoItem>(
+                Builders<TodoItem>.IndexKeys
+                    .Ascending(t => t.PartitionKey)
+                    .Descending(t => t.CreatedAt),
+                new CreateIndexOptions { Name = "partitionKey_createdAt_desc" });
+
+            _todoCollection.Indexes.CreateOne(listIndex);
         }
 
         public async Task<List<TodoItem>> GetAllAsync()
         {
             // Returns all todo items sorted by newest first
             return await _todoCollection
-                .Find(_ => true)
+                .Find(t => t.PartitionKey == TodoPartitionKey)
                 .SortByDescending(t => t.CreatedAt)
                 .ToListAsync();
         }
@@ -85,7 +95,7 @@ namespace TodoApp.Repositories
             // Make sure system values are always set
             todoItem.Id = null;
             todoItem.CreatedAt = DateTime.UtcNow;
-            todoItem.PartitionKey = "TodoItem";
+            todoItem.PartitionKey = TodoPartitionKey;
 
             // Insert into database
             await _todoCollection.InsertOneAsync(todoItem);

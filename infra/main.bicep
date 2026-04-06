@@ -59,7 +59,11 @@ var bastionVmName = '${prefix}-bastion-vm'
 var proxyVmName = '${prefix}-proxy-vm'
 var appVmName = '${prefix}-app-vm'
 
-var appInit = loadTextContent('cloud-init-dotnet-app.yaml')
+var cosmosPrimaryKey = listKeys(cosmosAccount.id, '2025-04-15').primaryMasterKey
+var cosmosMongoConnectionString = 'mongodb://${cosmosAccount.name}:${cosmosPrimaryKey}@${cosmosAccount.name}.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@${cosmosAccount.name}@'
+var appInitTemplate = loadTextContent('cloud-init-dotnet-app.yaml')
+var appInitWithConnection = replace(appInitTemplate, '__COSMOS_CONNECTION_STRING__', cosmosMongoConnectionString)
+var appInit = replace(appInitWithConnection, '__COSMOS_DATABASE_NAME__', cosmosMongoDbName)
 
 resource bastionAsg 'Microsoft.Network/applicationSecurityGroups@2024-05-01' = {
   name: bastionAsgName

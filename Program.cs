@@ -30,7 +30,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection(); // Redirect HTTP to HTTPS
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection(); // Redirect HTTP to HTTPS only when a local HTTPS endpoint exists
+}
 app.UseStaticFiles(); // Serve CSS/JS/images
 
 app.UseRouting();

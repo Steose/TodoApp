@@ -8,6 +8,10 @@ on:
     - "main"
   workflow_dispatch:
 
+env:
+  APP_DIR: /opt/todoapp
+  SERVICE_FILE: /etc/systemd/system/todoapp.service
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -38,6 +42,9 @@ jobs:
   deploy:
     runs-on: self-hosted
     needs: build
+    env:
+      COSMOS_MONGO_CONNECTION_STRING: ${{ secrets.COSMOS_MONGO_CONNECTION_STRING }}
+      COSMOS_MONGO_DATABASE_NAME: ${{ secrets.COSMOS_MONGO_DATABASE_NAME }}
 
     steps:
     - name: Download the artifacts from Github (from the build job)
@@ -56,12 +63,43 @@ jobs:
       run: |
         sudo systemctl stop todoapp.service || true
 
+    - name: Rewrite the application service configuration
+      run: |
+        test -n "$COSMOS_MONGO_CONNECTION_STRING"
+        test -n "$COSMOS_MONGO_DATABASE_NAME"
+        sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+        [Unit]
+        Description=TodoApp ASP.NET Core Application
+        After=network.target
+
+        [Service]
+        Type=simple
+        User=azureuser
+        WorkingDirectory=$APP_DIR
+        ExecStart=/usr/bin/env dotnet $APP_DIR/TodoApp.dll
+        Restart=on-failure
+        RestartSec=5
+        StandardOutput=inherit
+        StandardError=inherit
+        Environment="ASPNETCORE_URLS=http://0.0.0.0:8080"
+        Environment="ASPNETCORE_ENVIRONMENT=Production"
+        Environment="DatabaseProvider__Provider=CosmosMongo"
+        Environment="CosmosMongo__ConnectionString=$COSMOS_MONGO_CONNECTION_STRING"
+        Environment="CosmosMongo__DatabaseName=$COSMOS_MONGO_DATABASE_NAME"
+        Environment="CosmosMongo__TodoCollectionName=Todos"
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        sudo systemctl daemon-reload
+        sudo systemctl enable todoapp.service
+
     - name: Deploy the application
       run: |
-        sudo rm -rf /opt/todoapp
-        sudo mkdir -p /opt/todoapp
-        sudo cp -r ./* /opt/todoapp/ 2>/dev/null || sudo cp -r * /opt/todoapp/
-        sudo chown -R azureuser:azureuser /opt/todoapp
+        sudo rm -rf "$APP_DIR"
+        sudo mkdir -p "$APP_DIR"
+        sudo cp -r ./* "$APP_DIR"/ 2>/dev/null || sudo cp -r * "$APP_DIR"/
+        sudo chown -R azureuser:azureuser "$APP_DIR"
 
     - name: Start the application service
       run: |
