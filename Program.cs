@@ -1,4 +1,5 @@
 using Azure.Identity;
+using Microsoft.Extensions.Options;
 using TodoApp.Configurations;
 using TodoApp.Options; // Option classes
 using TodoApp.Repositories; // Repository interfaces and implementations
@@ -18,10 +19,6 @@ builder.Services.Configure<MongoDbOptions>(
 
 builder.Services.Configure<CosmosMongoOptions>(
     builder.Configuration.GetSection("CosmosMongo"));
-
-// Register repository and service with dependency injection
-builder.Services.AddSingleton<ITodoRepository, TodoRepository>();
-builder.Services.AddSingleton<ITodoService, TodoService>();
 
 // Check if Azure Key Vault should be used
 bool useAzureKeyVault = builder.Configuration.GetValue<bool>("FeatureFlags:UseAzureKeyVault");
@@ -56,12 +53,16 @@ else
 }
 
 var configuredProvider = builder.Configuration["DatabaseProvider:Provider"]?.Trim();
-var useMongoDb = builder.Configuration.GetValue<bool>("FeatureFlags:UseMongoDb");
 var useCosmosMongo = builder.Configuration.GetValue<bool>("FeatureFlags:UseCosmosMongo");
+var useMongoDb = builder.Configuration.GetValue<bool>("FeatureFlags:UseMongoDb");
 
 if (string.IsNullOrWhiteSpace(configuredProvider))
 {
-    configuredProvider = useCosmosMongo ? "CosmosMongo" : "MongoDb";
+    configuredProvider = useCosmosMongo
+        ? "CosmosMongo"
+        : useMongoDb
+            ? "MongoDb"
+            : "InMemory";
     builder.Configuration["DatabaseProvider:Provider"] = configuredProvider;
 }
 
@@ -69,11 +70,32 @@ if (string.Equals(configuredProvider, "CosmosMongo", StringComparison.OrdinalIgn
 {
     Console.WriteLine("Using Cosmos MongoDB repository");
 }
-else
+else if (string.Equals(configuredProvider, "MongoDb", StringComparison.OrdinalIgnoreCase))
 {
-    builder.Configuration["DatabaseProvider:Provider"] = "MongoDb";
     Console.WriteLine("Using MongoDB repository");
 }
+else
+{
+    builder.Configuration["DatabaseProvider:Provider"] = "InMemory";
+    Console.WriteLine("Using in-memory repository");
+}
+
+// Register repository and service with dependency injection
+builder.Services.AddSingleton<ITodoRepository>(sp =>
+{
+    var providerOptions = sp.GetRequiredService<IOptions<DatabaseProviderOptions>>();
+    var provider = providerOptions.Value.Provider?.Trim();
+
+    if (string.Equals(provider, "CosmosMongo", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(provider, "MongoDb", StringComparison.OrdinalIgnoreCase))
+    {
+        return ActivatorUtilities.CreateInstance<TodoRepository>(sp);
+    }
+
+    return ActivatorUtilities.CreateInstance<InMemoryTodoRepository>(sp);
+});
+
+builder.Services.AddSingleton<ITodoService, TodoService>();
 
 var app = builder.Build();
 
