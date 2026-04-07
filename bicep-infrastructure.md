@@ -55,6 +55,16 @@ Expected startup output includes:
 Expected local app URL:
 - `http://localhost:5292`
 
+If you want to override local settings without editing checked-in files, use `dotnet user-secrets`:
+
+```bash
+dotnet user-secrets init
+dotnet user-secrets set "MongoDb:ConnectionString" "mongodb://localhost:27017"
+dotnet user-secrets set "AzureKeyVault:KeyVaultUri" "https://<your-key-vault-name>.vault.azure.net/"
+```
+
+User secrets are stored outside the project directory and override values from `appsettings.json` and `appsettings.Development.json` during local development.
+
 ### 1. Clone or Prepare the TodoApp Project
 
 First, ensure you have the TodoApp source code ready:
