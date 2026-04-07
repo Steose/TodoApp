@@ -5,11 +5,13 @@ packages:
   - curl
   - git
 
-# Install .NET 10 SDK and Runtime
+# Install .NET 9 ASP.NET Core runtime
 runcmd:
   - |
+    wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb
+    dpkg -i /tmp/packages-microsoft-prod.deb
     apt-get update
-    apt-get install -y dotnet-sdk-10 dotnet-runtime-10
+    apt-get install -y aspnetcore-runtime-9.0
   - |
     # Create app directory
     mkdir -p /opt/todoapp
@@ -55,7 +57,7 @@ write_files:
       # Then run: systemctl start todoapp
       echo "TodoApp deployment directory ready at /opt/todoapp"
       echo "To deploy your app:"
-      echo "  1. Build locally: dotnet publish -c Release -o ./publish"
+      echo "  1. Build locally: dotnet publish TodoApp.csproj -c Release -o ./publish"
       echo "  2. Copy to VM: scp -r ./publish/* azureuser@10.0.2.4:/opt/todoapp/"
       echo "  3. Start service: ssh azureuser@10.0.2.4 'sudo systemctl start todoapp'"
       echo "  4. Check status: ssh azureuser@10.0.2.4 'systemctl status todoapp'"

@@ -45,7 +45,7 @@ cd TodoApp
 The application targets `.NET 9.0`. Build and publish it before copying files to the VM:
 
 ```bash
-dotnet publish -c Release -o ./publish
+dotnet publish TodoApp.csproj -c Release -o ./publish
 ```
 
 ### 3. Set Up Azure Environment
@@ -150,6 +150,43 @@ ssh -J azureuser@$BASTION_IP azureuser@10.0.2.4 "sudo apt-get install -y aspnetc
 ```
 
 ### 10. Deploy the Application
+
+Run this from your local machine in the `TodoApp` directory to publish, copy the app to the private VM through the bastion host, restart the service, and verify both the backend and public proxy:
+
+```bash
+set -euo pipefail
+
+RESOURCE_GROUP="TodoAppRG"
+DEPLOYMENT_NAME="main"
+APP_VM_IP="10.0.2.4"
+
+dotnet publish TodoApp.csproj -c Release -o ./publish
+
+BASTION_IP=$(az deployment group show \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$DEPLOYMENT_NAME" \
+  --query "properties.outputs.bastionPublicIp.value" -o tsv)
+
+PUBLIC_IP=$(az deployment group show \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$DEPLOYMENT_NAME" \
+  --query "properties.outputs.reverseProxyPublicIp.value" -o tsv)
+
+ssh -J azureuser@"$BASTION_IP" azureuser@"$APP_VM_IP" \
+  "sudo systemctl stop todoapp.service || true && sudo mkdir -p /opt/todoapp && sudo chown -R azureuser:azureuser /opt/todoapp"
+
+tar -C publish -cf - . | ssh -J azureuser@"$BASTION_IP" azureuser@"$APP_VM_IP" \
+  "tar -C /opt/todoapp -xf -"
+
+ssh -J azureuser@"$BASTION_IP" azureuser@"$APP_VM_IP" \
+  "sudo systemctl daemon-reload && sudo systemctl restart todoapp.service && sudo systemctl status todoapp.service --no-pager"
+
+ssh -J azureuser@"$BASTION_IP" azureuser@"$APP_VM_IP" \
+  "curl -I http://127.0.0.1:8080"
+
+curl -I "http://$PUBLIC_IP"
+echo "TodoApp URL: http://$PUBLIC_IP"
+```
 
 Copy the published application to the VM:
 

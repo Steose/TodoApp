@@ -30,6 +30,12 @@ param cosmosAccountName string
 @description('Mongo database name')
 param cosmosMongoDbName string = 'appdb'
 
+@description('Key Vault name. Must be globally unique.')
+param keyVaultName string
+
+@description('Object ID of the signed-in Azure user who should become Key Vault Administrator.')
+param currentUserObjectId string = ''
+
 var vnetName = '${prefix}-vnet'
 
 var bastionSubnetName = 'bastion-subnet'
@@ -64,6 +70,11 @@ var cosmosMongoConnectionString = 'mongodb://${cosmosAccount.name}:${cosmosPrima
 var appInitTemplate = loadTextContent('cloud-init-dotnet-app.yaml')
 var appInitWithConnection = replace(appInitTemplate, '__COSMOS_CONNECTION_STRING__', cosmosMongoConnectionString)
 var appInit = replace(appInitWithConnection, '__COSMOS_DATABASE_NAME__', cosmosMongoDbName)
+
+var keyVaultAdminRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '00482a5a-887f-4fb3-b363-3b7fe8e74483'
+)
 
 resource bastionAsg 'Microsoft.Network/applicationSecurityGroups@2024-05-01' = {
   name: bastionAsgName
@@ -505,8 +516,41 @@ resource cosmosMongoDb 'Microsoft.DocumentDB/databaseAccounts/mongodbDatabases@2
   }
 }
 
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: keyVaultName
+  location: location
+  properties: {
+    tenantId: tenant().tenantId
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+    enableRbacAuthorization: true
+    enabledForDeployment: false
+    enabledForDiskEncryption: false
+    enabledForTemplateDeployment: false
+    publicNetworkAccess: 'Enabled'
+    softDeleteRetentionInDays: 90
+    enableSoftDelete: true
+    enablePurgeProtection: true
+  }
+}
+
+resource keyVaultAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, currentUserObjectId, keyVaultAdminRoleDefinitionId)
+  scope: keyVault
+  properties: {
+    principalId: currentUserObjectId
+    roleDefinitionId: keyVaultAdminRoleDefinitionId
+    principalType: 'User'
+  }
+}
+
 output bastionPublicIp string = bastionPip.properties.ipAddress
 output reverseProxyPublicIp string = proxyPip.properties.ipAddress
 output appPrivateIp string = '10.0.2.4'
 output reverseProxyUrl string = 'http://${proxyPip.properties.ipAddress}'
 output cosmosEndpoint string = cosmosAccount.properties.documentEndpoint
+output keyVaultNameOutput string = keyVault.name
+output keyVaultId string = keyVault.id
+output keyVaultUri string = keyVault.properties.vaultUri

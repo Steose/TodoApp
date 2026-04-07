@@ -9,3 +9,5 @@ param sshPublicKey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAp4jAHgrBAA+r9kcuW6HS
 
 param cosmosAccountName = 'todoappcosmosmongo12345'
 param cosmosMongoDbName = 'todoappdb'
+
+param keyVaultName = 'todoappkv12345'
