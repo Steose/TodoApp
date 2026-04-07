@@ -64,7 +64,16 @@ namespace TodoApp.Controllers
                 return View(todoItem);
             }
 
-            await _todoService.CreateAsync(todoItem);
+            try
+            {
+                await _todoService.CreateAsync(todoItem);
+            }
+            catch (MongoException ex)
+            {
+                ModelState.AddModelError(string.Empty, "Failed to save the todo item because the database is unavailable.");
+                Console.Error.WriteLine($"MongoDB write error: {ex.Message}");
+                return View(todoItem);
+            }
 
             return RedirectToAction(nameof(Index));
         }
@@ -108,7 +117,16 @@ namespace TodoApp.Controllers
                 return NotFound();
             }
 
-            await _todoService.UpdateAsync(id, todoItem);
+            try
+            {
+                await _todoService.UpdateAsync(id, todoItem);
+            }
+            catch (MongoException ex)
+            {
+                ModelState.AddModelError(string.Empty, "Failed to update the todo item because the database is unavailable.");
+                Console.Error.WriteLine($"MongoDB write error: {ex.Message}");
+                return View(todoItem);
+            }
 
             return RedirectToAction(nameof(Index));
         }
@@ -148,7 +166,16 @@ namespace TodoApp.Controllers
                 return NotFound();
             }
 
-            await _todoService.RemoveAsync(id);
+            try
+            {
+                await _todoService.RemoveAsync(id);
+            }
+            catch (MongoException ex)
+            {
+                ViewBag.Error = "Failed to delete the todo item because the database is unavailable.";
+                Console.Error.WriteLine($"MongoDB write error: {ex.Message}");
+                return View(todo);
+            }
 
             return RedirectToAction(nameof(Index));
         }
@@ -162,7 +189,15 @@ namespace TodoApp.Controllers
                 return BadRequest();
             }
 
-            await _todoService.ToggleCompleteAsync(id);
+            try
+            {
+                await _todoService.ToggleCompleteAsync(id);
+            }
+            catch (MongoException ex)
+            {
+                TempData["Error"] = "Failed to update the todo item because the database is unavailable.";
+                Console.Error.WriteLine($"MongoDB write error: {ex.Message}");
+            }
 
             return RedirectToAction(nameof(Index));
         }

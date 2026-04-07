@@ -24,6 +24,37 @@ By the end of this tutorial, you will have deployed a complete TodoApp infrastru
 
 ## Steps
 
+### 0. Verify Local Development Configuration
+
+Before deploying to Azure, verify the app works locally with Docker MongoDB.
+
+Start MongoDB and mongo-express:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+```
+
+Expected local services:
+- MongoDB on `localhost:27017`
+- mongo-express on `http://localhost:8081`
+
+The development configuration is expected to use:
+- `DatabaseProvider:Provider=MongoDb`
+- `MongoDb:ConnectionString=mongodb://localhost:27017`
+- `FeatureFlags:UseAzureKeyVault=false`
+
+Run the app locally:
+
+```bash
+dotnet run
+```
+
+Expected startup output includes:
+- `Using MongoDB repository`
+
+Expected local app URL:
+- `http://localhost:5292`
+
 ### 1. Clone or Prepare the TodoApp Project
 
 First, ensure you have the TodoApp source code ready:
@@ -118,6 +149,14 @@ The production app VM runs the site behind Nginx on plain HTTP port `8080`.
 - The app should use Cosmos DB Mongo API in production, not `mongodb://localhost:27017`.
 - The systemd service should launch the app with `ExecStart=/usr/bin/env dotnet /opt/todoapp/TodoApp.dll`.
 
+If you want the production app to read secrets from Azure Key Vault instead of embedding them in `todoapp.service`, enable the `FeatureFlags:UseAzureKeyVault` setting and store the MongoDB connection string in Key Vault using this exact secret name:
+
+- `MongoDb--ConnectionString`
+
+ASP.NET Core maps double dashes in Key Vault secret names to `:` in configuration keys, so `MongoDb--ConnectionString` becomes `MongoDb:ConnectionString`.
+
+The infrastructure template provisions Key Vault with RBAC enabled.
+
 The expected environment entries in `todoapp.service` are:
 
 ```ini
@@ -127,6 +166,13 @@ Environment="DatabaseProvider__Provider=CosmosMongo"
 Environment="CosmosMongo__ConnectionString=<full Cosmos Mongo connection string>"
 Environment="CosmosMongo__DatabaseName=todoappdb"
 Environment="CosmosMongo__TodoCollectionName=Todos"
+```
+
+If you use Key Vault for runtime secrets, also configure:
+
+```ini
+Environment="FeatureFlags__UseAzureKeyVault=true"
+Environment="AzureKeyVault__KeyVaultUri=https://<your-key-vault-name>.vault.azure.net/"
 ```
 
 ### 9. Install .NET Runtime on Application VM

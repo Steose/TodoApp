@@ -66,7 +66,9 @@ var proxyVmName = '${prefix}-proxy-vm'
 var appVmName = '${prefix}-app-vm'
 
 var cosmosPrimaryKey = cosmosAccount.listKeys().primaryMasterKey
-var cosmosMongoConnectionString = 'mongodb://${cosmosAccount.name}:${cosmosPrimaryKey}@${cosmosAccount.name}.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@${cosmosAccount.name}@'
+var cosmosMongoUsername = uriComponent(cosmosAccount.name)
+var cosmosMongoPassword = uriComponent(cosmosPrimaryKey)
+var cosmosMongoConnectionString = 'mongodb://${cosmosMongoUsername}:${cosmosMongoPassword}@${cosmosAccount.name}.mongo.cosmos.azure.com:10255/${cosmosMongoDbName}?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&authMechanism=SCRAM-SHA-256&appName=@${cosmosAccount.name}@'
 var appInitTemplate = loadTextContent('cloud-init-dotnet-app.yaml')
 var appInitWithConnection = replace(appInitTemplate, '__COSMOS_CONNECTION_STRING__', cosmosMongoConnectionString)
 var appInit = replace(appInitWithConnection, '__COSMOS_DATABASE_NAME__', cosmosMongoDbName)

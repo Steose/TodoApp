@@ -55,7 +55,35 @@ else
     Console.WriteLine("Using appsettings.json for configuration");
 }
 
+var configuredProvider = builder.Configuration["DatabaseProvider:Provider"]?.Trim();
+var useMongoDb = builder.Configuration.GetValue<bool>("FeatureFlags:UseMongoDb");
+var useCosmosMongo = builder.Configuration.GetValue<bool>("FeatureFlags:UseCosmosMongo");
+
+if (string.IsNullOrWhiteSpace(configuredProvider))
+{
+    configuredProvider = useCosmosMongo ? "CosmosMongo" : "MongoDb";
+    builder.Configuration["DatabaseProvider:Provider"] = configuredProvider;
+}
+
+if (string.Equals(configuredProvider, "CosmosMongo", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("Using Cosmos MongoDB repository");
+}
+else
+{
+    builder.Configuration["DatabaseProvider:Provider"] = "MongoDb";
+    Console.WriteLine("Using MongoDB repository");
+}
+
 var app = builder.Build();
+
+var aspNetCoreUrls = app.Configuration["ASPNETCORE_URLS"];
+var hasHttpsEndpoint =
+    !string.IsNullOrWhiteSpace(app.Configuration["HTTPS_PORT"]) ||
+    (!string.IsNullOrWhiteSpace(aspNetCoreUrls) &&
+     aspNetCoreUrls
+        .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Any(url => url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)));
 
 // Configure HTTP request pipeline
 if (!app.Environment.IsDevelopment())
@@ -64,7 +92,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() && hasHttpsEndpoint)
 {
     app.UseHttpsRedirection(); // Redirect HTTP to HTTPS only when a local HTTPS endpoint exists
 }

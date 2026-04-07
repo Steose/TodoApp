@@ -22,6 +22,15 @@ By the end of this tutorial, you will have a complete CI/CD pipeline that automa
 - Azure subscription with deployed infrastructure
 - SSH access to bastion and app VMs
 
+## Secret Naming
+
+There are two separate secret stores in this setup:
+
+- Azure Key Vault runtime secret name: `MongoDb--ConnectionString`
+- GitHub Actions deployment secrets: `COSMOS_MONGO_CONNECTION_STRING` and `COSMOS_MONGO_DATABASE_NAME`
+
+Do not mix them up. The Key Vault secret is read by the application through ASP.NET Core configuration mapping. The GitHub Actions secrets are only used by the deployment workflow when it rewrites `todoapp.service`.
+
 ## Steps
 
 ### 1. Verify Infrastructure is Running
